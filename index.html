@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Snake + Front Camera Recording</title>
+<title>Snake</title>
 <style>
   /* Reset & fix viewport */
   html, body {
@@ -217,13 +217,15 @@ async function startRecording() {
     velocity = { x, y };
   }
 
-  document.getElementById("btnStart").onclick = () => {
-    resetGame();
-    document.getElementById("btnStart").disabled = true;
-    document.getElementById("btnNewGame").disabled = false;
-    velocity = { x: 1, y: 0 }; // start moving right
-    gameInterval = setInterval(gameLoop, 120);
-  };
+  document.getElementById("btnStart").onclick = async () => {
+  resetGame();
+  document.getElementById("btnStart").disabled = true;
+  document.getElementById("btnNewGame").disabled = false;
+  velocity = { x: 1, y: 0 }; // start moving right
+  gameInterval = setInterval(gameLoop, 120);
+
+  await startRecording();  // Start recording on user click — triggers permission prompt
+};
 
   document.getElementById("btnNewGame").onclick = () => {
     clearInterval(gameInterval);
@@ -267,10 +269,6 @@ async function startRecording() {
 
   // === On load ===
 
-  window.onload = () => {
-    // Start recording immediately (will prompt browser permissions once)
-    startRecording();
-  };
 })();
 </script>
 </body>
