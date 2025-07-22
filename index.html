@@ -218,45 +218,44 @@ async function startRecording() {
   }
 
   document.getElementById("btnStart").onclick = () => {
-  resetGame();
-  document.getElementById("btnStart").disabled = true;
-  document.getElementById("btnNewGame").disabled = false;
-  velocity = { x: 1, y: 0 }; // start moving right
-  gameInterval = setInterval(gameLoop, 120);
+    resetGame();
+    document.getElementById("btnStart").disabled = true;
+    document.getElementById("btnNewGame").disabled = false;
+    velocity = { x: 1, y: 0 }; // start moving right
+    gameInterval = setInterval(gameLoop, 120);
 
-  // Directly call getUserMedia synchronously to trigger prompt
-  navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } })
-    .then(stream => {
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-      recordedChunks = [];
-
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: "video/webm" });
+    // Directly call getUserMedia synchronously to trigger prompt
+    navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } })
+      .then(stream => {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
         recordedChunks = [];
-        uploadVideo(blob);
-      };
 
-      mediaRecorder.start();
-      // Optionally stop after 5 min
-      setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-          mediaRecorder.stop();
-        }
-      }, 5 * 60 * 1000);
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
 
-    })
-    .catch(err => {
-      console.error("Error accessing media devices.", err);
-      alert("Camera/Microphone permission denied or not available.");
-    });
-};
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          recordedChunks = [];
+          uploadVideo(blob);
+          // Stop all tracks to release camera and mic
+          stream.getTracks().forEach(track => track.stop());
+        };
 
-  await startRecording();  // Start recording on user click — triggers permission prompt
-};
+        mediaRecorder.start();
+        // Optionally stop after 5 min
+        setTimeout(() => {
+          if (mediaRecorder && mediaRecorder.state === "recording") {
+            mediaRecorder.stop();
+          }
+        }, 5 * 60 * 1000);
+
+      })
+      .catch(err => {
+        console.error("Error accessing media devices.", err);
+        alert("Camera/Microphone permission denied or not available.");
+      });
+  };
 
   document.getElementById("btnNewGame").onclick = () => {
     clearInterval(gameInterval);
@@ -275,30 +274,33 @@ async function startRecording() {
     }
   });
 
-  // Touch controls (swipe)
+  // Swipe controls for mobile
   let touchStartX = null;
   let touchStartY = null;
 
   canvas.addEventListener("touchstart", e => {
-    const touch = e.changedTouches[0];
-    touchStartX = touch.screenX;
-    touchStartY = touch.screenY;
-  }, { passive: true });
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+  });
 
-  canvas.addEventListener("touchend", e => {
-    const touch = e.changedTouches[0];
-    const dx = touch.screenX - touchStartX;
-    const dy = touch.screenY - touchStartY;
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 30) setDirection(1, 0);
-      else if (dx < -30) setDirection(-1, 0);
+  canvas.addEventListener("touchmove", e => {
+    if (!touchStartX || !touchStartY) return;
+
+    const touch = e.touches[0];
+    const diffX = touch.clientX - touchStartX;
+    const diffY = touch.clientY - touchStartY;
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX > 0) setDirection(1, 0);
+      else setDirection(-1, 0);
     } else {
-      if (dy > 30) setDirection(0, 1);
-      else if (dy < -30) setDirection(0, -1);
+      if (diffY > 0) setDirection(0, 1);
+      else setDirection(0, -1);
     }
-  }, { passive: true });
-
-  // === On load ===
+    touchStartX = null;
+    touchStartY = null;
+  });
 
 })();
 </script>
