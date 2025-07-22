@@ -195,11 +195,34 @@ mediaRecorder.onstop = () => {
   const blob = new Blob(recordedChunks, { type: "video/webm" });
   recordedChunks = [];
   uploadVideo(blob);
-
-  // DO NOT stop tracks here, keep stream active to continue recording
-  // mediaStream.getTracks().forEach(track => track.stop());
-  // mediaStream = null;
+  // Don't stop tracks here, keep them active for continuous recording
 };
+
+document.getElementById("btnStart").onclick = () => {
+  if (mediaRecorder && mediaRecorder.state === "inactive") {
+    mediaRecorder.start();
+    document.getElementById("btnStopRecording").disabled = false;
+  }
+  // Start the game logic here...
+};
+
+document.getElementById("btnStopRecording").onclick = () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop(); // triggers onstop and uploads the blob
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop()); // stop camera/mic
+      mediaStream = null;
+    }
+    document.getElementById("btnStopRecording").disabled = true;
+  }
+};
+
+// Optional: automatically stop recording/upload if user leaves the page
+window.addEventListener("beforeunload", () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+  }
+});
 
       document.getElementById("btnStart").disabled = false;
       document.getElementById("btnNewGame").disabled = true;
