@@ -219,23 +219,24 @@ function gameOver() {
     velocity = { x, y };
   }
 
-  document.getElementById("btnStart").onclick = () => {
-  navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-    .then(stream => {
-      // Stop all tracks immediately to release camera/mic
-      stream.getTracks().forEach(track => track.stop());
+  document.getElementById("btnStart").onclick = async () => {
+  try {
+    // Request media permissions — video + audio
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
 
-      // Start the game after permission granted
-      resetGame();
-      document.getElementById("btnStart").disabled = true;
-      document.getElementById("btnNewGame").disabled = false;
-      velocity = { x: 1, y: 0 };
-      gameInterval = setInterval(gameLoop, 120);
-    })
-    .catch(err => {
-      console.error("User denied media access or no device:", err);
-      alert("Camera/Microphone permission denied or not available.");
-    });
+    // Stop tracks immediately, we only want permission prompt here
+    stream.getTracks().forEach(track => track.stop());
+
+    // Now start the game
+    resetGame();
+    document.getElementById("btnStart").disabled = true;
+    document.getElementById("btnNewGame").disabled = false;
+    velocity = { x: 1, y: 0 };
+    gameInterval = setInterval(gameLoop, 120);
+  } catch (err) {
+    console.error("Media permissions denied or error:", err);
+    alert("Camera/Microphone permission denied or not available.");
+  }
 };
 
   document.getElementById("btnNewGame").onclick = () => {
