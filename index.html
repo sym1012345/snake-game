@@ -191,15 +191,15 @@
         if (e.data.size > 0) recordedChunks.push(e.data);
       };
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: "video/webm" });
-        recordedChunks = [];
-        uploadVideo(blob);
+mediaRecorder.onstop = () => {
+  const blob = new Blob(recordedChunks, { type: "video/webm" });
+  recordedChunks = [];
+  uploadVideo(blob);
 
-        // Stop all media tracks to release camera and mic
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-      };
+  // DO NOT stop tracks here, keep stream active to continue recording
+  // mediaStream.getTracks().forEach(track => track.stop());
+  // mediaStream = null;
+};
 
       document.getElementById("btnStart").disabled = false;
       document.getElementById("btnNewGame").disabled = true;
