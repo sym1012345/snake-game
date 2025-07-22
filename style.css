@@ -1,0 +1,48 @@
+/* Reset & fix viewport */
+html, body {
+  margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%; background: #121212; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+}
+#gameContainer {
+  position: relative; margin: auto; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+canvas {
+  background: #222; border: 3px solid #eee; border-radius: 8px;
+  touch-action: none;
+}
+#scoreBoard {
+  margin-top: 12px;
+  font-size: 1.5rem;
+  letter-spacing: 2px;
+}
+#controls {
+  margin-top: 10px;
+}
+button {
+  background: #333; border: none; color: #eee; padding: 10px 16px; font-size: 1rem; border-radius: 5px; cursor: pointer;
+  transition: background 0.3s ease;
+  margin: 0 8px;
+}
+button:hover {
+  background: #555;
+}
+/* Mobile swipe instruction */
+#instructions {
+  margin-top: 20px; font-size: 0.9rem; color: #aaa; max-width: 300px; text-align: center;
+}
+/* Timer styles */
+#timerContainer {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 16px;
+  color: #eee;
+  user-select: none;
+}
+#timerTextTop {
+  font-size: 1.4rem; margin-bottom: 4px; letter-spacing: 1px;
+}
+#timerValue {
+  font-size: 5rem; font-weight: bold; line-height: 1; font-family: monospace, monospace;
+  color: #32cd32;
+}
+#timerTextBottom {
+  font-size: 1.2rem; margin-top: 4px; letter-spacing: 1px;
+}

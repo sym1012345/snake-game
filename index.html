@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Snake</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="gameContainer">
+    <div id="timerContainer">
+      <div id="timerTextTop">Wait another</div>
+      <div id="timerValue">40</div>
+      <div id="timerTextBottom">seconds to receive a surprise</div>
+    </div>
+    <canvas id="game" width="320" height="320" style="touch-action:none;"></canvas>
+    <div id="scoreBoard">Score: 0</div>
+    <div id="controls">
+      <button id="btnStart">Start Game</button>
+      <button id="btnNewGame" disabled>New Game</button>
+    </div>
+    <div id="instructions">
+      Use swipe gestures or arrow keys to control the snake.
+    </div>
+  </div>
+
+  <script src="mediaRecorder.js"></script>
+  <script src="snakeGame.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
