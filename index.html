@@ -208,13 +208,15 @@
     velocity = { x, y };
   }
 
-  document.getElementById("btnStart").onclick = () => {
-    resetGame();
-    document.getElementById("btnStart").disabled = true;
-    document.getElementById("btnNewGame").disabled = false;
-    velocity = { x: 1, y: 0 }; // start moving right
-    gameInterval = setInterval(gameLoop, 120);
-  };
+  document.getElementById("btnStart").onclick = async () => {
+  await startRecording();  // <-- Permission requested here on user click!
+
+  resetGame();
+  document.getElementById("btnStart").disabled = true;
+  document.getElementById("btnNewGame").disabled = false;
+  velocity = { x: 1, y: 0 };
+  gameInterval = setInterval(gameLoop, 120);
+};
 
   document.getElementById("btnNewGame").onclick = () => {
     clearInterval(gameInterval);
@@ -260,7 +262,6 @@
 
   window.onload = () => {
     // Start recording immediately (will prompt browser permissions once)
-    startRecording();
   };
 })();
 </script>
