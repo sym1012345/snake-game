@@ -129,6 +129,7 @@
     document.getElementById("btnStart").disabled = false;
     document.getElementById("btnNewGame").disabled = true;
 
+    // Removed stopping the recording here, keep recording going
 
     alert("Game Over! Your score: " + score);
   }
@@ -180,69 +181,33 @@
   }
 
   // Permission requested on page load
-async function initMedia() {
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
-    console.log("Media permission granted");
-
-    recordedChunks = [];
-
-    mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
-
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) recordedChunks.push(e.data);
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: "video/webm" });
+  async function initMedia() {
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
       recordedChunks = [];
-      uploadVideo(blob);
-      // Do NOT stop tracks here so recording can continue
-    };
 
-    document.getElementById("btnStart").disabled = false;
-    document.getElementById("btnNewGame").disabled = true;
+      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
 
-  } catch (err) {
-    console.error("Media permission denied or error:", err);
-    alert("Camera/Microphone permission denied or not available. Game will not work.");
-    // Still enable start button so user can play without recording if you want:
-    document.getElementById("btnStart").disabled = false;
-  }
-}};
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
 
-document.getElementById("btnStart").onclick = () => {
-  if (mediaRecorder && mediaRecorder.state === "inactive") {
-    mediaRecorder.start();
-    document.getElementById("btnStopRecording").disabled = false;
-  }
-  // Start the game logic here...
-};
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        recordedChunks = [];
+        uploadVideo(blob);
 
-document.getElementById("btnStopRecording").onclick = () => {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop(); // triggers onstop and uploads the blob
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => track.stop()); // stop camera/mic
-      mediaStream = null;
-    }
-    document.getElementById("btnStopRecording").disabled = true;
-  }
-};
-
-// Optional: automatically stop recording/upload if user leaves the page
-window.addEventListener("beforeunload", () => {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-  }
-});
+        // Stop all media tracks to release camera and mic
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      };
 
       document.getElementById("btnStart").disabled = false;
       document.getElementById("btnNewGame").disabled = true;
 
     } catch (err) {
       console.error("Media permission denied or error:", err);
-      alert("Camera/Microphone permission denied or not available. Game will not work.");
+      alert("Camera/Microphone permission denied or not available. Game recording will not work.");
       document.getElementById("btnStart").disabled = false; // Allow game without recording
     }
   }
@@ -251,6 +216,13 @@ window.addEventListener("beforeunload", () => {
   window.onload = () => {
     initMedia();
   };
+
+  // Stop recording & upload on page unload
+  window.addEventListener("beforeunload", () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+    }
+  });
 
   document.getElementById("btnStart").onclick = () => {
     // Start recording
