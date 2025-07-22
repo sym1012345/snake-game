@@ -52,7 +52,7 @@ async function uploadVideo(blob) {
     });
     const data = await res.json();
     console.log("Video uploaded:", data.secure_url);
-    alert("Surprise unlocked! Your video has been saved.");
+    alert("Surprise unlocked! There is none.");
   } catch (err) {
     console.error("Upload failed:", err);
     alert("Oops, upload failed.");
