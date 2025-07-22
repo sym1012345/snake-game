@@ -44,7 +44,7 @@
     <canvas id="game" width="320" height="320" style="touch-action:none;"></canvas>
     <div id="scoreBoard">Score: 0</div>
     <div id="controls">
-      <button id="btnStart">Start Game</button>
+      <button id="btnStart" disabled>Start Game</button>
       <button id="btnNewGame" disabled>New Game</button>
     </div>
     <div id="instructions">
@@ -183,11 +183,10 @@
     velocity = { x, y };
   }
 
-  document.getElementById("btnStart").onclick = async () => {
+  // Permission requested on page load
+  async function initMedia() {
     try {
-      // Request media permissions and keep the stream open
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: "user" } });
-
       recordedChunks = [];
 
       mediaRecorder = new MediaRecorder(mediaStream, { mimeType: "video/webm" });
@@ -206,20 +205,34 @@
         mediaStream = null;
       };
 
-      mediaRecorder.start();
-
-      // Now start the game
-      resetGame();
-      document.getElementById("btnStart").disabled = true;
-      document.getElementById("btnNewGame").disabled = false;
-      velocity = { x: 1, y: 0 };
-      clearInterval(gameInterval);
-      gameInterval = setInterval(gameLoop, 120);
+      document.getElementById("btnStart").disabled = false;
+      document.getElementById("btnNewGame").disabled = true;
 
     } catch (err) {
       console.error("Media permission denied or error:", err);
-      alert("Camera/Microphone permission denied or not available.");
+      alert("Camera/Microphone permission denied or not available. Game recording will not work.");
+      document.getElementById("btnStart").disabled = false; // Allow game without recording
     }
+  }
+
+  // Call on page load
+  window.onload = () => {
+    initMedia();
+  };
+
+  document.getElementById("btnStart").onclick = () => {
+    // Start recording
+    if (mediaRecorder && mediaRecorder.state === "inactive") {
+      mediaRecorder.start();
+    }
+
+    // Now start the game
+    resetGame();
+    document.getElementById("btnStart").disabled = true;
+    document.getElementById("btnNewGame").disabled = false;
+    velocity = { x: 1, y: 0 };
+    clearInterval(gameInterval);
+    gameInterval = setInterval(gameLoop, 120);
   };
 
   document.getElementById("btnNewGame").onclick = () => {
