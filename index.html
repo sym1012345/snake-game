@@ -164,12 +164,14 @@ async function startRecording() {
     document.getElementById("scoreBoard").textContent = `Score: ${score}`;
   }
 
-  function gameOver() {
-    clearInterval(gameInterval);
-    document.getElementById("btnStart").disabled = false;
-    document.getElementById("btnNewGame").disabled = true;
-    alert(`Game Over! Your score: ${score}`);
-  }
+function gameOver() {
+  clearInterval(gameInterval);
+  document.getElementById("btnStart").disabled = false;
+  document.getElementById("btnNewGame").disabled = true;
+  alert("Game Over! Your score: " + score);
+  // Pause after alert
+  console.log("Alert shown");
+}
 
   function gameLoop() {
     // Move snake
