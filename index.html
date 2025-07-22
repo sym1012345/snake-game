@@ -129,10 +129,6 @@
     document.getElementById("btnStart").disabled = false;
     document.getElementById("btnNewGame").disabled = true;
 
-    // Stop recording if active
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-    }
 
     alert("Game Over! Your score: " + score);
   }
@@ -210,7 +206,7 @@
 
     } catch (err) {
       console.error("Media permission denied or error:", err);
-      alert("Camera/Microphone permission denied or not available. Game recording will not work.");
+      alert("Camera/Microphone permission denied or not available. Game will not work.");
       document.getElementById("btnStart").disabled = false; // Allow game without recording
     }
   }
