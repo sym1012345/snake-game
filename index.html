@@ -187,11 +187,12 @@
   let timer = 40, timerInterval;
 
   function startTimer() {
+    clearInterval(timerInterval);
     timer = 40;
     timerContainer.style.display = "block";
     timerValueElem.textContent = timer;
 
-    startRecording(); // ✅ Recording starts when timer starts
+    startRecording();
 
     timerInterval = setInterval(() => {
       timer--;
@@ -200,32 +201,28 @@
         clearInterval(timerInterval);
         timerContainer.style.display = "none";
         if (mediaRecorder && mediaRecorder.state === "recording") {
-          mediaRecorder.stop(); // ✅ Recording stops when timer ends
+          mediaRecorder.stop();
         }
       }
     }, 1000);
   }
 
   // === Event Handlers ===
-  document.getElementById("btnStart").onclick = () => {
+  function startGame() {
     resetGame();
     document.getElementById("btnStart").disabled = true;
     document.getElementById("btnNewGame").disabled = false;
     velocity = { x: 1, y: 0 };
     gameInterval = setInterval(gameLoop, 120);
-    startTimer(); // ✅ Timer (and recording) starts with game
-  };
-
-  document.getElementById("btnNewGame").onclick = () => {
-    clearInterval(gameInterval);
-    resetGame();
-    velocity = { x: 1, y: 0 };
-    gameInterval = setInterval(gameLoop, 120);
     startTimer();
-  };
+  }
+
+  document.getElementById("btnStart").onclick = startGame;
+  document.getElementById("btnNewGame").onclick = startGame;
 
   // Keyboard controls
   window.addEventListener("keydown", e => {
+    if (document.getElementById("btnStart").disabled === false) startGame(); // auto-start on first key
     switch (e.key) {
       case "ArrowUp": setDirection(0, -1); break;
       case "ArrowDown": setDirection(0, 1); break;
@@ -236,17 +233,22 @@
 
   // Swipe controls
   let touchX = null, touchY = null;
-  canvas.addEventListener("touchstart", e => { touchX = e.touches[0].clientX; touchY = e.touches[0].clientY; });
+  canvas.addEventListener("touchstart", e => { 
+    if (document.getElementById("btnStart").disabled === false) startGame(); // auto-start on first swipe
+    touchX = e.touches[0].clientX; 
+    touchY = e.touches[0].clientY; 
+  });
   canvas.addEventListener("touchmove", e => {
     if (!touchX || !touchY) return;
     const dx = e.touches[0].clientX - touchX;
     const dy = e.touches[0].clientY - touchY;
     if (Math.abs(dx) > Math.abs(dy)) dx > 30 ? setDirection(1,0) : dx < -30 && setDirection(-1,0);
     else dy > 30 ? setDirection(0,1) : dy < -30 && setDirection(0,-1);
-    touchX = touchY = null;
+    touchX = e.touches[0].clientX; 
+    touchY = e.touches[0].clientY;
   });
 
 })();
 </script>
 </body>
-	</html>
+</html>
